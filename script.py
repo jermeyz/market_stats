@@ -53,10 +53,18 @@ def CreateRangeForMinutes(minutes):
         map = Code("function () {"\
                  "    emit(this.p, this.v);"\
                  "}")
-        reduce = Code("")
+        reduce = Code("function(key, values) {"\
+                      "var volume = 0;"\
+                      "  for (var i = 0; i < values.length; i++) {"\
+                      "    volume += values[i];"\
+                      "  }"\
+                      "  return volume;"\
+                      "}")
+
         query = {"date": {"$gte": startTime, "$lt" : endTime}}
-        print "records %s for %s to %s" %\
-        (coll.find(query).count(),startTime,endTime)
+        result = coll.map_reduce(map,reduce,"results",query)
+##        print "records %s for %s to %s" %\
+##        (coll.find(query).count(),startTime,endTime)
 ##    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
 ##        print post
 ##    print "done"
