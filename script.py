@@ -4,7 +4,27 @@ import datetime
 import time
 import datetime
 
+def GetMap():
+    map = Code("function () {"\
+                 "    emit(this.p, this.v);"\
+                 "}")
+    return map
+      
+def GetReduce():
+      reduce = Code("function(key, values) {"\
+                      "var volume = 0;"\
+                      "  for (var i = 0; i < values.length; i++) {"\
+                      "    volume += values[i];"\
+                      "  }"\
+                      "  return volume;"\
+                      "}")
+      return reduce
 
+def GetQuery():
+     query = {"date": {"$gte": startTime, "$lt" : endTime}}
+     return query
+    
+    
 def ProcessFile():
     """Takes a file name and inserts the tick data into the database"""
     from time import mktime
@@ -28,6 +48,7 @@ def ConnectToMongo():
     db = connection['ES_DATA']
     collection = db.es_ticks
     return collection
+
 def CreateRangeForMinutes(minutes):
     from datetime import timedelta
     from bson.code import Code
@@ -39,33 +60,24 @@ def CreateRangeForMinutes(minutes):
     tempDate = datetime.datetime(2011,4,4,9,30,00)
 ##    d = datetime(2011, 4, 4, 9,30,00)
 ##    s = datetime(2011,4,4,9,31,00)
-    for i in range(1,15):
+    for i in range(1,15): # 15 half hour sessions and 1 15 minute
         startTimeDelta  = timedelta(minutes=30 * i)
-        endTimeDelta = timedelta(minutes=30 * (i -1))
-        if i == 14:
+        endTimeDelta = timedelta(minutes=30 * (i - 1))
+        if i == 14: # last one is only 15 minutes
             temp = 30 * i
             startTimeDelta  = datetime.timedelta(minutes= temp - 15)
         else :
             startTimeDelta  = datetime.timedelta(minutes=30 * i)
         startTime = tempDate + endTimeDelta
         endTime = tempDate + startTimeDelta
-        #print "start: %s end: %s" % (startTime,endTime)
-        map = Code("function () {"\
-                 "    emit(this.p, this.v);"\
-                 "}")
-        reduce = Code("function(key, values) {"\
-                      "var volume = 0;"\
-                      "  for (var i = 0; i < values.length; i++) {"\
-                      "    volume += values[i];"\
-                      "  }"\
-                      "  return volume;"\
-                      "}")
+        print "start: %s end: %s" % (startTime,endTime)
+        
 
-        query = {"date": {"$gte": startTime, "$lt" : endTime}}
-        result = coll.map_reduce(map,reduce,"results",query)
+##       
+##        result = coll.map_reduce(GetMap(),GetReduce(),"results",GetQuery())
 ##        print "records %s for %s to %s" %\
 ##        (coll.find(query).count(),startTime,endTime)
-##    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
+##    for post in coll.find(GetQuery()):
 ##        print post
 ##    print "done"
     
