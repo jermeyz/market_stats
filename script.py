@@ -56,4 +56,4 @@ def CreateRangeForMinutes(minutes):
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
     CreateRangeForMinutes(30)
-    #ProcessFile()
+    #ProcessFile() 
