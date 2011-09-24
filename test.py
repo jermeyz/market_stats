@@ -28,9 +28,12 @@ def ConnectToMongo():
 def CreateRangeForMinutes(minutes):
     from datetime import datetime
     coll = ConnectToMongo()
-    for post in coll.find({ 'volume' : '5' } ):
+    d = datetime(2011, 4, 4, 9,30,00)
+    s = datetime(2011,4,4,9,31,00)
+    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
         print post
     print "done"
+    print coll.find({"date": {"$gte": d, "$lt" : s}}).count()
 if __name__ == '__main__' :
-    #CreateRangeForMinutes(10)
-    ProcessFile()
+    CreateRangeForMinutes(10)
+    #ProcessFile()
