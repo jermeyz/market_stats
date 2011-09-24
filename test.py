@@ -2,6 +2,8 @@ import os
 import pymongo
 import datetime
 import time
+import datetime
+
 
 def ProcessFile():
     """Takes a file name and inserts the tick data into the database"""
@@ -13,8 +15,11 @@ def ProcessFile():
     coll = ConnectToMongo()
     for line in Myfile:
         symbol, date, price, volume, bid, ask = line.split('\t')
-        post = {'date': datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %I:%M:%S"))) ,'bid': float(bid) , 'ask': float(ask) , 'p': float(price) , 'v': int(volume)}
-        #print post['date']
+        post = {'date': datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
+                ,'bid': float(bid)
+                ,'ask': float(ask)
+                ,'p': float(price)
+                ,'v': int(volume)}
         coll.insert(post)
     Myfile.close()
 def ConnectToMongo():
@@ -23,17 +28,32 @@ def ConnectToMongo():
     db = connection['ES_DATA']
     collection = db.es_ticks
     return collection
-    #post = {'jz' : 'test'}
-    #collection.insert(post)
 def CreateRangeForMinutes(minutes):
-    from datetime import datetime
+    from datetime import timedelta
     coll = ConnectToMongo()
-    d = datetime(2011, 4, 4, 9,30,00)
-    s = datetime(2011,4,4,9,31,00)
-    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
-        print post
-    print "done"
-    print coll.find({"date": {"$gte": d, "$lt" : s}}).count()
+    startTime = datetime.datetime(2011,4,4,9,30,00)
+    endTime = datetime.datetime(2011,4,4,4,15,00)
+
+    tempDate = datetime.datetime(2011,4,4,9,30,00)
+##    d = datetime(2011, 4, 4, 9,30,00)
+##    s = datetime(2011,4,4,9,31,00)
+    for i in range(1,15):
+        startTimeDelta  = timedelta(minutes=30 * i)
+        endTimeDelta = timedelta(minutes=30 * (i -1))
+        if i == 14:
+            temp = 30 * i
+            startTimeDelta  = datetime.timedelta(minutes= temp - 15)
+        else :
+            startTimeDelta  = datetime.timedelta(minutes=30 * i)
+        startTime = tempDate + endTimeDelta
+        endTime = tempDate + startTimeDelta
+        #print "start: %s end: %s" % (startTime,endTime)
+        print "records %s for %s to %s" % (coll.find({"date": {"$gte": startTime, "$lt" : endTime}}).count(),startTime,endTime)
+##    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
+##        print post
+##    print "done"
+    
+    # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    CreateRangeForMinutes(10)
+    CreateRangeForMinutes(30)
     #ProcessFile()
