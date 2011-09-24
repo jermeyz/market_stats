@@ -30,6 +30,8 @@ def ConnectToMongo():
     return collection
 def CreateRangeForMinutes(minutes):
     from datetime import timedelta
+    from bson.code import Code
+
     coll = ConnectToMongo()
     startTime = datetime.datetime(2011,4,4,9,30,00)
     endTime = datetime.datetime(2011,4,4,4,15,00)
@@ -48,7 +50,13 @@ def CreateRangeForMinutes(minutes):
         startTime = tempDate + endTimeDelta
         endTime = tempDate + startTimeDelta
         #print "start: %s end: %s" % (startTime,endTime)
-        print "records %s for %s to %s" % (coll.find({"date": {"$gte": startTime, "$lt" : endTime}}).count(),startTime,endTime)
+        map = Code("function () {"\
+                 "    emit(this.p, this.v);"\
+                 "}")
+        reduce = Code("")
+        query = {"date": {"$gte": startTime, "$lt" : endTime}}
+        print "records %s for %s to %s" %\
+        (coll.find(query).count(),startTime,endTime)
 ##    for post in coll.find({"date": {"$gte": d, "$lt" : s}}):
 ##        print post
 ##    print "done"
