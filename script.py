@@ -3,6 +3,7 @@ import pymongo
 import datetime
 import time
 import datetime
+from bson.code import Code
 
 def GetMap():
     map = Code("function () {"\
@@ -20,7 +21,7 @@ def GetReduce():
                       "}")
       return reduce
 
-def GetQuery():
+def GetQuery(startTime,endTime):
      query = {"date": {"$gte": startTime, "$lt" : endTime}}
      return query
     
@@ -32,8 +33,11 @@ def ProcessFile():
     
     Myfile = open("./data.txt")
     print "first line %s" % (Myfile.readline())
-    coll = ConnectToMongo()
+    coll = GetConnection().es_ticks
+    index = 0
     for line in Myfile:
+        if index == 10000:
+            break
         symbol, date, price, volume, bid, ask = line.split('\t')
         post = {'date': datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
                 ,'bid': float(bid)
@@ -41,26 +45,26 @@ def ProcessFile():
                 ,'p': float(price)
                 ,'v': int(volume)}
         coll.insert(post)
+        index += 1
     Myfile.close()
-def ConnectToMongo():
+def GetConnection():
     from pymongo import Connection
     connection = Connection("mongodb://jermeyz:zeidner1@flame.mongohq.com:27039/ES_DATA")
     db = connection['ES_DATA']
-    collection = db.es_ticks
-    return collection
+    #collection = db.es_ticks
+    return db
 
-def CreateRangeForMinutes(minutes):
+def CreateRangeForMinutes():
     from datetime import timedelta
-    from bson.code import Code
-
-    coll = ConnectToMongo()
+    
+    conn = GetConnection()
+    coll = GetConnection().es_ticks
     startTime = datetime.datetime(2011,4,4,9,30,00)
     endTime = datetime.datetime(2011,4,4,4,15,00)
 
     tempDate = datetime.datetime(2011,4,4,9,30,00)
-##    d = datetime(2011, 4, 4, 9,30,00)
-##    s = datetime(2011,4,4,9,31,00)
-    for i in range(1,15): # 15 half hour sessions and 1 15 minute
+
+    for i in range(1,3): # 15 half hour sessions and 1 15 minute
         startTimeDelta  = timedelta(minutes=30 * i)
         endTimeDelta = timedelta(minutes=30 * (i - 1))
         if i == 14: # last one is only 15 minutes
@@ -71,17 +75,17 @@ def CreateRangeForMinutes(minutes):
         startTime = tempDate + endTimeDelta
         endTime = tempDate + startTimeDelta
         print "start: %s end: %s" % (startTime,endTime)
-        
-
-##       
-##        result = coll.map_reduce(GetMap(),GetReduce(),"results",GetQuery())
-##        print "records %s for %s to %s" %\
-##        (coll.find(query).count(),startTime,endTime)
-##    for post in coll.find(GetQuery()):
-##        print post
-##    print "done"
+        result = coll.map_reduce(GetMap(),GetReduce(),GetQuery(startTime,endTime))
+        for m in result.find():
+            print m
+            #insert the volume at price for that given period
+            doc = {'start_time': datetime.datetime(2011,2,2),
+                   'end_time': datetime.datetime(2011,2,4),
+                   'v' : 12,
+                   'price': 23}
+            conn.jz.insert(doc)
     
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    CreateRangeForMinutes(30)
+    CreateRangeForMinutes()
     #ProcessFile() 
