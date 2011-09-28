@@ -49,7 +49,7 @@ def ProcessFile():
     Myfile.close()
 def GetConnection():
     from pymongo import Connection
-    connection = Connection("mongodb://jermeyz:zeidner1@flame.mongohq.com:27039/ES_DATA")
+    connection = Connection("mongodb://jermeyz:zeidner1@staff.mongohq.com:10031/ES_DATA")
     db = connection['ES_DATA']
     #collection = db.es_ticks
     return db
@@ -58,11 +58,13 @@ def CreateRangeForMinutes():
     from datetime import timedelta
     
     conn = GetConnection()
-    coll = GetConnection().es_ticks
+    coll = conn.es_ticks
+    rollup = conn.rollup
     startTime = datetime.datetime(2011,4,4,9,30,00)
     endTime = datetime.datetime(2011,4,4,4,15,00)
 
     tempDate = datetime.datetime(2011,4,4,9,30,00)
+
 
     for i in range(1,3): # 15 half hour sessions and 1 15 minute
         startTimeDelta  = timedelta(minutes=30 * i)
@@ -75,15 +77,17 @@ def CreateRangeForMinutes():
         startTime = tempDate + endTimeDelta
         endTime = tempDate + startTimeDelta
         print "start: %s end: %s" % (startTime,endTime)
-        result = coll.map_reduce(GetMap(),GetReduce(),GetQuery(startTime,endTime))
+        result = coll.map_reduce(GetMap(),GetReduce(),"myresult",GetQuery(startTime,endTime))
+        print result
         for m in result.find():
             print m
             #insert the volume at price for that given period
-            doc = {'start_time': datetime.datetime(2011,2,2),
-                   'end_time': datetime.datetime(2011,2,4),
-                   'v' : 12,
-                   'price': 23}
-            conn.jz.insert(doc)
+            doc = {'start_time': startTime,
+                   'end_time': endTime,
+                   'v' : m['value'],
+                   'price': m['_id']}
+            rollup.insert(doc)
+        conn.drop_collection("myresult")
     
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
