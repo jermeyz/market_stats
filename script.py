@@ -5,7 +5,9 @@ import time
 import datetime
 from bson.code import Code
 
-symbol = {"ES" : {sessionStartTime: time.strptime("9:30:00","%H:%M:%S"), sessionEndTime: time.strptime("16:15:00","%H:%M:%S")}} 
+es = { "symbol" : "ES" , "sessionTime" : {
+        "sessionStartTime": time.strptime("9:30:00","%H:%M:%S"),
+        "sessionEndTime" : time.strptime("16:15:00","%H:%M:%S")}} 
 
 def GetMap():
     map = Code("function () {"\
@@ -28,14 +30,14 @@ def GetQuery(startTime,endTime):
      return query
     
     
-def ProcessFile():
+def ProcessFile(fileName,date):
     """Takes a file name and inserts the tick data into the database"""
     from time import mktime
     from datetime import datetime
     
-    Myfile = open("./data.txt")
+    Myfile = open("./" + fileName)
     print "first line %s" % (Myfile.readline())
-    coll = GetConnection().es_ticks
+    coll = GetConnection()["es_ticks_" + date]
     index = 0
     for line in Myfile:
         if index == 10000:
@@ -55,8 +57,10 @@ def GetConnection():
     db = connection['ES_DATA']
     #collection = db.es_ticks
     return db
+def GetRange(symbol):
+    return range(1,15)
 
-def CreateRangeForMinutes():
+def CreateRangeForMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
     conn = GetConnection()
@@ -67,15 +71,14 @@ def CreateRangeForMinutes():
 
     tempDate = datetime.datetime(2011,4,4,9,30,00)
 
-
-    for i in range(1,3): # 15 half hour sessions and 1 15 minute
-        startTimeDelta  = timedelta(minutes=30 * i)
-        endTimeDelta = timedelta(minutes=30 * (i - 1))
+    for i in GetRange(symbol): # 15 half hour sessions and 1 15 minute
+        startTimeDelta  = timedelta(minutes=minutesPerBar * i)
+        endTimeDelta = timedelta(minutes=minutesPerBar * (i - 1))
         if i == 14: # last one is only 15 minutes
-            temp = 30 * i
+            temp = minutesPerBar * i
             startTimeDelta  = datetime.timedelta(minutes= temp - 15)
         else :
-            startTimeDelta  = datetime.timedelta(minutes=30 * i)
+            startTimeDelta  = datetime.timedelta(minutes=minutesPerBar * i)
         startTime = tempDate + endTimeDelta
         endTime = tempDate + startTimeDelta
         print "start: %s end: %s" % (startTime,endTime)
@@ -94,5 +97,5 @@ def CreateRangeForMinutes():
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    CreateRangeForMinutes()
-    #ProcessFile() 
+    CreateRangeForMinutes(es,30,datetime.datetime(2011,4,4))
+    #ProcessFile("data.txt","2011-4-4") 
