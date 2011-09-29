@@ -5,6 +5,8 @@ import time
 import datetime
 from bson.code import Code
 
+symbol = {"ES" : {sessionStartTime: time.strptime("9:30:00","%H:%M:%S"), sessionEndTime: time.strptime("16:15:00","%H:%M:%S")}} 
+
 def GetMap():
     map = Code("function () {"\
                  "    emit(this.p, this.v);"\
@@ -88,7 +90,8 @@ def CreateRangeForMinutes():
                    'price': m['_id']}
             rollup.insert(doc)
         conn.drop_collection("myresult")
-    
+
+
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
     CreateRangeForMinutes()
