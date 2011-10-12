@@ -6,27 +6,40 @@ import datetime
 import math
 from bson.code import Code
 
+class Symbol:
+    def __init__(self,ticker,startTime,endTime):
+        self.ticker = ticker
+        self.startTime = startTime
+        self.endTime = endTime
+
 es = {"symbol" : "ES" ,  "sessionStartTime" : datetime.time(hour=9,minute=30,second=00) ,
                           "sessionEndTime" : datetime.time(hour=16,minute=15,second=00) }
 
 def GetMap():
     map = Code("function () {"\
-                 "    emit(this.p, this.v);"\
+                 "  var b = 0,a = 0;      "\
+                 " if(this.p <= this.bid) {   "\
+                 "      b = this.v;     }  "\
+                 " if(this.p >= this.ask) {  "\
+                 "      a = this.v;  }   "\
+                 "    emit(this.p, {volume:this.v, ask: a, bid: b} );"\
                  "}")
     return map
       
 def GetReduce():
       reduce = Code("function(key, values) {"\
-                      "var volume = 0;"\
+                      "var volume = 0,bid = 0,ask = 0;"\
                       "  for (var i = 0; i < values.length; i++) {"\
-                      "    volume += values[i];"\
+                      "    volume += values[i].volume;"\
+                      "    bid += values[i].bid;"\
+                      "    ask += values[i].ask;"\
                       "  }"\
-                      "  return volume;"\
+                      "  return {volume: volume,bid:bid,ask:ask};"\
                       "}")
       return reduce
 
 def GetQuery(startTime,endTime):
-     query = {"date": {"$gte": startTime, "$lt" : endTime}}
+     query = {"date": {"$gte": startTime, "$lte" : endTime}}
      return query
     
     
@@ -37,7 +50,8 @@ def ProcessFile(fileName,date,symbol):
     
     Myfile = open("./" + fileName)
     print "first line %s" % (Myfile.readline())
-    coll = GetConnection()[symbol + "_ticks_" + date]
+    conn = GetConnection()
+    coll = conn[GetCollectionName(symbol,date)]
     index = 0
     for line in Myfile:
         if index == 10000:
@@ -66,46 +80,34 @@ def GetRange(symbol,minutes):
     diff =  end - start
     numOfUnitsOfMinutes =  float((diff.seconds /60 )) / float(minutes)
     x = math.ceil(numOfUnitsOfMinutes)
-    return range(1,x + 1)
-
+    return range(1,int(x) + 1)
+def GetCollectionName(symbol, date):
+    return symbol["symbol"]  + "-" + str(date.year) + "-" + str(date.month) + "-" + str(date.day)
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
     conn = GetConnection()
-    coll = conn.es_ticks
-    rollup = conn.rollup
+    coll = conn[GetCollectionName(symbol,date)]
+    #rollup = conn.rollup
    
-
-    tempDate = datetime.datetime(2011,4,4,9,30,00)
 
     startTime = date + timedelta(hours=symbol["sessionStartTime"].hour,minutes=symbol["sessionStartTime"].minute,seconds=symbol["sessionStartTime"].second )
 
-    for i in GetRange(symbol,30): # 15 half hour sessions and 1 15 minute
-##        startTimeDelta  = timedelta(minutes=minutesPerBar * i)
-##        endTimeDelta = timedelta(minutes=minutesPerBar * (i - 1))
-##        if i == 14: # last one is only 15 minutes
-##            temp = minutesPerBar * i
-##            startTimeDelta  = timedelta(minutes= temp - 15)
-##        else :
-##            startTimeDelta  = timedelta(minutes=minutesPerBar * i)
-##        startTime = tempDate + endTimeDelta
-##        endTime = tempDate + startTimeDelta
+    for i in GetRange(symbol,30): 
        
         rangeStartTime  = startTime + timedelta(minutes=minutesPerBar* (i-1))
         rangeEndTime = rangeStartTime + timedelta(minutes=minutesPerBar,seconds=-1)
 
-        
         if rangeEndTime.time() > symbol["sessionEndTime"]:
-            rangeEndTime = symbol["sessionEndTime"]
-
-            
+            rangeEndTime = date + timedelta(hours=symbol["sessionEndTime"].hour,minutes=symbol["sessionEndTime"].minute,seconds=symbol["sessionEndTime"].second) 
+  
         print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
 
        
-##        result = coll.map_reduce(GetMap(),GetReduce(),"myresult",GetQuery(startTime,endTime))
-##        print result
-##        for m in result.find():
-##            print m
+        result = coll.map_reduce(GetMap(),GetReduce(),"myresult",GetQuery(rangeStartTime,rangeEndTime))
+        print result
+        for m in result.find():
+            print m
 ##            #insert the volume at price for that given period
 ##            doc = {'start_time': startTime,
 ##                   'end_time': endTime,
@@ -118,5 +120,7 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
     CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,4,4))
-    #ProcessFile("data.txt","2011-4-4","es") 
-    #GetRange(es,30)
+    #ProcessFile("data.txt",datetime.datetime(2011,4,4),es)
+    #print GetCollectionName(es,datetime.datetime(2011,12,12))
+    #print GetRange(es,30)
+
