@@ -12,6 +12,8 @@ class Symbol:
         self.startTime = startTime
         self.endTime = endTime
 
+es2 = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
+
 es = {"symbol" : "ES" ,  "sessionStartTime" : datetime.time(hour=9,minute=30,second=00) ,
                           "sessionEndTime" : datetime.time(hour=16,minute=15,second=00) }
 
@@ -83,12 +85,16 @@ def GetRange(symbol,minutes):
     return range(1,int(x) + 1)
 def GetCollectionName(symbol, date):
     return symbol["symbol"]  + "-" + str(date.year) + "-" + str(date.month) + "-" + str(date.day)
+def Get30MinuteBarCollection(symbol):
+    return symbol["symbol"] + "-30-minute-bars"
+def GetStatsCollectionName(symbol):
+    return "STATS-" + symbol["symbol"]
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
     conn = GetConnection()
     coll = conn[GetCollectionName(symbol,date)]
-    #rollup = conn.rollup
+    rollup = conn[Get30MinuteBarCollection(symbol)]
    
 
     startTime = date + timedelta(hours=symbol["sessionStartTime"].hour,minutes=symbol["sessionStartTime"].minute,seconds=symbol["sessionStartTime"].second )
@@ -108,13 +114,15 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
         print result
         for m in result.find():
             print m
-##            #insert the volume at price for that given period
-##            doc = {'start_time': startTime,
-##                   'end_time': endTime,
-##                   'v' : m['value'],
-##                   'price': m['_id']}
-##            rollup.insert(doc)
-##        conn.drop_collection("myresult")
+            #insert the volume at price for that given period
+            doc = {'start_time': rangeStartTime,
+                   'end_time': rangeEndTime,
+                   'volume' : m['value']['volume'],
+                   'price': m['_id'],
+                   'bid' : m['value']['bid'],
+                   'ask' : m['value']['ask']}
+            rollup.insert(doc)
+        conn.drop_collection("myresult")
 
 
     # get all records in the range and get the volume at each price
