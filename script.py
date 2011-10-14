@@ -12,10 +12,8 @@ class Symbol:
         self.startTime = startTime
         self.endTime = endTime
 
-es2 = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
-
-es = {"symbol" : "ES" ,  "sessionStartTime" : datetime.time(hour=9,minute=30,second=00) ,
-                          "sessionEndTime" : datetime.time(hour=16,minute=15,second=00) }
+es = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
+                    
 
 def GetMap():
     map = Code("function () {"\
@@ -71,24 +69,24 @@ def GetConnection():
     from pymongo import Connection
     connection = Connection("mongodb://jermeyz:zeidner1@staff.mongohq.com:10031/ES_DATA")
     db = connection['ES_DATA']
-    #collection = db.es_ticks
     return db
 def GetRange(symbol,minutes):
     #get total length of session and divide by minutes
     #need a fake date to subtract
-    start = datetime.datetime(1900,1,1,symbol["sessionStartTime"].hour,symbol["sessionStartTime"].minute,symbol["sessionStartTime"].second)
-    end = datetime.datetime(1900,1,1,symbol["sessionEndTime"].hour,symbol["sessionEndTime"].minute,symbol["sessionEndTime"].second)
+
+    start = datetime.datetime(1900,1,1,symbol.startTime.hour,symbol.startTime.minute,symbol.startTime.second)
+    end = datetime.datetime(1900,1,1,symbol.endTime.hour,symbol.endTime.minute,symbol.endTime.second)
  
     diff =  end - start
     numOfUnitsOfMinutes =  float((diff.seconds /60 )) / float(minutes)
     x = math.ceil(numOfUnitsOfMinutes)
     return range(1,int(x) + 1)
 def GetCollectionName(symbol, date):
-    return symbol["symbol"]  + "-" + str(date.year) + "-" + str(date.month) + "-" + str(date.day)
+    return symbol.ticker  + "-" + str(date.year) + "-" + str(date.month) + "-" + str(date.day)
 def Get30MinuteBarCollection(symbol):
-    return symbol["symbol"] + "-30-minute-bars"
+    return symbol.ticker+ "-30-minute-bars"
 def GetStatsCollectionName(symbol):
-    return "STATS-" + symbol["symbol"]
+    return "STATS-" + symbol.ticker
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
@@ -97,15 +95,15 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     rollup = conn[Get30MinuteBarCollection(symbol)]
    
 
-    startTime = date + timedelta(hours=symbol["sessionStartTime"].hour,minutes=symbol["sessionStartTime"].minute,seconds=symbol["sessionStartTime"].second )
+    startTime = date + timedelta(hours=symbol.startTime.hour,minutes=symbol.startTime.minute,seconds=symbol.startTime.second )
 
     for i in GetRange(symbol,30): 
        
         rangeStartTime  = startTime + timedelta(minutes=minutesPerBar* (i-1))
         rangeEndTime = rangeStartTime + timedelta(minutes=minutesPerBar,seconds=-1)
 
-        if rangeEndTime.time() > symbol["sessionEndTime"]:
-            rangeEndTime = date + timedelta(hours=symbol["sessionEndTime"].hour,minutes=symbol["sessionEndTime"].minute,seconds=symbol["sessionEndTime"].second) 
+        if rangeEndTime.time() > symbol.endTime:
+            rangeEndTime = date + timedelta(hours=symbol.endTime.hour,minutes=symbol.endTime.minute,seconds=symbol.endTime.second) 
   
         print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
 
@@ -124,6 +122,12 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
             rollup.insert(doc)
         conn.drop_collection("myresult")
 
+    ##create stats for this date
+    ##stats that we want to create
+    ## for each x minutesBar avg volume and range
+    ## range and volume for the day
+    statsCollection = conn[GetStatsCollectionName(symbol)]
+    statsCollection.insert({'stat_name' : 200})
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
