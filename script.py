@@ -43,7 +43,9 @@ def GetReduce():
 def GetQuery(startTime,endTime):
      query = {"date": {"$gte": startTime, "$lte" : endTime}}
      return query
-def GetQueryForAvgVolume(startDate,endDate,symbol):
+def GetQueryForTotalVolume(date,symbol):
+    startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.startTime.hour,minute=symbol.startTime.minute,second=symbol.startTime.second)
+    endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.endTime.hour,minute=symbol.endTime.minute,second=symbol.endTime.second)
     query = {"start_time" : {"$gte" : startDate} , "end_time" : {"$lte" : endDate}}
     return query
     
@@ -91,21 +93,23 @@ def Get30MinuteBarCollection(symbol):
     return symbol.ticker+ "-30-minute-bars"
 def GetStatsCollectionName(symbol):
     return symbol.ticker + "-STATS"
-def Stats(startDate,endDate,symbol):
+def DailyStats(Date,symbol):
 
     conn = GetConnection()
     
-    statsCollection = conn[Get30MinuteBarCollection(symbol)]
-    sDateTime = datetime.datetime(year=startDate.year,month=startDate.month,day=startDate.day,hour=symbol.startTime.hour,minute=symbol.startTime.minute,second=symbol.startTime.second)
-    eDateTime = datetime.datetime(year=endDate.year,month=endDate.month,day=endDate.day,hour=symbol.endTime.hour,minute=symbol.endTime.minute,second=symbol.endTime.second)
-    result = statsCollection.find(GetQueryForAvgVolume(sDateTime,eDateTime,symbol))
+    queryCollection = conn[Get30MinuteBarCollection(symbol)]
+    statsCollection = conn[GetStatsCollectionName(symbol)]
+    
+    result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
     print sDateTime
     print eDateTime
-    for i in statsCollection.find(GetQueryForAvgVolume(sDateTime,eDateTime,symbol)):
+
+    for i in result:
         print i
+    
     #statsCollection.map_reduce(GetQueryForAverageVolume(startTime,endTime))
     
-    statsCollection.insert({'avg_volume_900_4:15_all' : { 'date' : 34 , 'value' : 4} })
+    statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
@@ -125,10 +129,9 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
             rangeEndTime = date + timedelta(hours=symbol.endTime.hour,minutes=symbol.endTime.minute,seconds=symbol.endTime.second) 
   
         print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
-
        
-        result = coll.map_reduce(GetMap(),GetReduce(),"myresult",GetQuery(rangeStartTime,rangeEndTime))
-        print result
+        result = coll.map_reduce(GetMap(),GetReduce(),"myresult",query=GetQuery(rangeStartTime,rangeEndTime))
+        print result.count()
         for m in result.find():
             print m
             #insert the volume at price for that given period
@@ -145,14 +148,15 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     ##stats that we want to create
     ## for each x minutesBar avg volume and range
     ## range and volume for the day
-    statsCollection = conn[GetStatsCollectionName(symbol)]
-    statsCollection.insert({'avg_volume_900_4:15_all' : { 'date' : 34 , 'value' : 4} })
+    #statsCollection = conn[GetStatsCollectionName(symbol)]
+    #statsCollection.insert({'avg_volume_900_4:15_all' : { 'date' : 34 , 'value' : 4} })
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,4,4))
-    #ProcessFile("data.txt",datetime.datetime(2011,4,4),es)
+    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
+    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
+    #ProcessFile("test_data-1-2-2011.txt",datetime.datetime(2011,1,2),es)
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
-    Stats(datetime.datetime(2011,4,4),datetime.datetime(2011,5,4),es)
+    DailyStats(datetime.datetime(2011,1,1),es)
 
