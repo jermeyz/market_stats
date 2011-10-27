@@ -46,7 +46,7 @@ def GetQuery(startTime,endTime):
 def GetQueryForTotalVolume(date,symbol):
     startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.startTime.hour,minute=symbol.startTime.minute,second=symbol.startTime.second)
     endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.endTime.hour,minute=symbol.endTime.minute,second=symbol.endTime.second)
-    query = {"start_time" : {"$gte" : startDate} , "end_time" : {"$lte" : endDate}}
+    query = {"start_date" : {"$gte" : startDate} , "end_date" : {"$lte" : endDate}, "start_time" : { "$gte" : symbol.startTime }, "end_time" : { "$lte" : symbol.endTime}}
     return query
     
 def ProcessFile(fileName,date,symbol):
@@ -63,7 +63,8 @@ def ProcessFile(fileName,date,symbol):
         if index == 10000:
             break
         symbol, date, price, volume, bid, ask = line.split('\t')
-        post = {'date': datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
+        d = datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
+        post = {'date': d
                 ,'bid': float(bid)
                 ,'ask': float(ask)
                 ,'p': float(price)
@@ -93,7 +94,7 @@ def Get30MinuteBarCollection(symbol):
     return symbol.ticker+ "-30-minute-bars"
 def GetStatsCollectionName(symbol):
     return symbol.ticker + "-STATS"
-def DailyStats(Date,symbol):
+def DailyStats(date,symbol):
 
     conn = GetConnection()
     
@@ -101,9 +102,7 @@ def DailyStats(Date,symbol):
     statsCollection = conn[GetStatsCollectionName(symbol)]
     
     result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
-    print sDateTime
-    print eDateTime
-
+    print result.count()
     for i in result:
         print i
     
@@ -117,7 +116,6 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     coll = conn[GetCollectionName(symbol,date)]
     rollup = conn[Get30MinuteBarCollection(symbol)]
    
-
     startTime = date + timedelta(hours=symbol.startTime.hour,minutes=symbol.startTime.minute,seconds=symbol.startTime.second )
 
     for i in GetRange(symbol,30): 
@@ -135,8 +133,10 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
         for m in result.find():
             print m
             #insert the volume at price for that given period
-            doc = {'start_time': rangeStartTime,
-                   'end_time': rangeEndTime,
+            doc = {'start_date': rangeStartTime,
+                   'end_date': rangeEndTime,
+                   'start_time' : rangeStartTime.time().isoformat(),
+                   'end_time' : rangeEndTime.time().isoformat(),
                    'volume' : m['value']['volume'],
                    'price': m['_id'],
                    'bid' : m['value']['bid'],
@@ -153,10 +153,11 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
-    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
+    CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
+    CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
     #ProcessFile("test_data-1-2-2011.txt",datetime.datetime(2011,1,2),es)
+    #ProcessFile("test_data-1-1-2011.txt",datetime.datetime(2011,1,1),es)
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
-    DailyStats(datetime.datetime(2011,1,1),es)
+    #DailyStats(datetime.datetime(2011,1,1),es)
 
