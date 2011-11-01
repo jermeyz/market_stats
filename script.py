@@ -27,9 +27,8 @@ def GetMap():
                  "    emit(this.p, {volume:this.v, ask: a, bid: b,v:1} );"\
                  "}")
     return map
-      
 def GetReduce():
-      reduce = Code("function(key, values) {"\
+    reduce = Code("function(key, values) {"\
                       "var volume = 0,bid = 0,ask = 0;"\
                       "  for (var i = 0; i < values.length; i++) {"\
                       "    volume += values[i].volume;"\
@@ -38,17 +37,32 @@ def GetReduce():
                       "  }"\
                       "  return {volume: volume,bid:bid,ask:ask};"\
                       "}")
-      return reduce
-
+    return reduce
+def GetMapForTotalVolume():
+    map = Code("function () {"\
+                " emit('1',{volume:this.volume} );"\
+                "}")
+    return map
+def GetReduceForTotalVolume():
+    reduce = Code("function(key, values) {"\
+                        "var volume = 0;"\
+                        " for( var i = 0; i < values.length; i++) {"\
+                        " volume += values[i].volume;"\
+                        "}"\
+                        " return {volume: volume}"\
+                        "}")
+    return reduce
 def GetQuery(startTime,endTime):
      query = {"date": {"$gte": startTime, "$lte" : endTime}}
      return query
 def GetQueryForTotalVolume(date,symbol):
-    startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.startTime.hour,minute=symbol.startTime.minute,second=symbol.startTime.second)
-    endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=symbol.endTime.hour,minute=symbol.endTime.minute,second=symbol.endTime.second)
-    query = {"start_date" : {"$gte" : startDate} , "end_date" : {"$lte" : endDate}, "start_time" : { "$gte" : symbol.startTime }, "end_time" : { "$lte" : symbol.endTime}}
+    startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=0,minute=0,second=0)
+    endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=23,minute=59,second=59)
+    query = {"start_date" : {"$gte" : startDate, "$lte" : endDate }} #, "end_date" : {"$lte" : endDate}}#, "start_time" : { "$gte" : TotalElaspsedSeconds(symbol.startTime) }, "end_time" : { "$lte" : TotalElaspsedSeconds(symbol.endTime)}}
+    #query = { "$where" : " this.start_date > Date(2011,1,1,0,0,0)" }
     return query
-    
+def TotalElaspsedSeconds(time):
+    return (time.hour * 360 )+ (time.minute * 60) + (time.second)
 def ProcessFile(fileName,date,symbol):
     """Takes a file name and inserts the tick data into the database"""
     from time import mktime
@@ -94,6 +108,8 @@ def Get30MinuteBarCollection(symbol):
     return symbol.ticker+ "-30-minute-bars"
 def GetStatsCollectionName(symbol):
     return symbol.ticker + "-STATS"
+def GetStatsName(symbol,description):
+    return symbol.ticker + "-" + description
 def DailyStats(date,symbol):
 
     conn = GetConnection()
@@ -101,6 +117,7 @@ def DailyStats(date,symbol):
     queryCollection = conn[Get30MinuteBarCollection(symbol)]
     statsCollection = conn[GetStatsCollectionName(symbol)]
     
+    #result = queryCollection.map_reduce(GetMapForTotalVolume(),GetReduceForTotalVolume(),"myresult",query=GetQueryForTotalVolume(date,symbol))
     result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
     print result.count()
     for i in result:
@@ -108,7 +125,7 @@ def DailyStats(date,symbol):
     
     #statsCollection.map_reduce(GetQueryForAverageVolume(startTime,endTime))
     
-    statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
+    #statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
     from datetime import timedelta
     
@@ -135,8 +152,8 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
             #insert the volume at price for that given period
             doc = {'start_date': rangeStartTime,
                    'end_date': rangeEndTime,
-                   'start_time' : rangeStartTime.time().isoformat(),
-                   'end_time' : rangeEndTime.time().isoformat(),
+                   'start_time' : TotalElaspsedSeconds(rangeStartTime.time()),
+                   'end_time' : TotalElaspsedSeconds(rangeEndTime.time()),
                    'volume' : m['value']['volume'],
                    'price': m['_id'],
                    'bid' : m['value']['bid'],
@@ -153,11 +170,11 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
-    CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
-    CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
+    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
+    #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
     #ProcessFile("test_data-1-2-2011.txt",datetime.datetime(2011,1,2),es)
     #ProcessFile("test_data-1-1-2011.txt",datetime.datetime(2011,1,1),es)
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
-    #DailyStats(datetime.datetime(2011,1,1),es)
+    DailyStats(datetime.datetime(2011,1,1),es)
 
