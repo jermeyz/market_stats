@@ -11,10 +11,10 @@ class Symbol:
         self.ticker = ticker
         self.startTime = startTime
         self.endTime = endTime
+    def GetSessionTimeSpan(self):
+        return self.startTime.strftime("%H:%M:%S") + "-" + self.endTime.strftime("%H:%M:%S")
 
 es = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
-
-#def GetMapForDailyVolume():
     
 
 def GetMap():
@@ -58,11 +58,27 @@ def GetQuery(startTime,endTime):
 def GetQueryForTotalVolume(date,symbol):
     startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=0,minute=0,second=0)
     endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=23,minute=59,second=59)
-    query = {"start_date" : {"$gte" : startDate, "$lte" : endDate }} #, "end_date" : {"$lte" : endDate}}#, "start_time" : { "$gte" : TotalElaspsedSeconds(symbol.startTime) }, "end_time" : { "$lte" : TotalElaspsedSeconds(symbol.endTime)}}
-    #query = { "$where" : " this.start_date > Date(2011,1,1,0,0,0)" }
+    startTime = TotalElaspsedSeconds(symbol.startTime)
+    endTime = TotalElaspsedSeconds(symbol.endTime)
+    
+    #print startTime 
+    #print endTime
+    #print symbol.endTime.hour
+    #print symbol.startTime.hour
+    query = {"start_date" :
+                {"$gte" : startDate, 
+                "$lte" : endDate } ,
+            "end_date" :
+                {"$gte" : startDate ,
+                "$lte" : endDate }  ,
+            "end_time" :
+                { "$lte" : endTime } ,
+            "start_time" :
+                { "$gte" : startTime }
+            } 
     return query
 def TotalElaspsedSeconds(time):
-    return (time.hour * 360 )+ (time.minute * 60) + (time.second)
+    return (time.hour * 3600) + (time.minute * 60) + (time.second)
 def ProcessFile(fileName,date,symbol):
     """Takes a file name and inserts the tick data into the database"""
     from time import mktime
@@ -109,7 +125,7 @@ def Get30MinuteBarCollection(symbol):
 def GetStatsCollectionName(symbol):
     return symbol.ticker + "-STATS"
 def GetStatsName(symbol,description):
-    return symbol.ticker + "-" + description
+    return symbol.ticker + "-"+ symbol.GetSessionTimeSpan() + "-" + description
 def DailyStats(date,symbol):
 
     conn = GetConnection()
@@ -117,13 +133,13 @@ def DailyStats(date,symbol):
     queryCollection = conn[Get30MinuteBarCollection(symbol)]
     statsCollection = conn[GetStatsCollectionName(symbol)]
     
-    #result = queryCollection.map_reduce(GetMapForTotalVolume(),GetReduceForTotalVolume(),"myresult",query=GetQueryForTotalVolume(date,symbol))
-    result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
-    print result.count()
-    for i in result:
-        print i
-    
-    #statsCollection.map_reduce(GetQueryForAverageVolume(startTime,endTime))
+    result = queryCollection.map_reduce(GetMapForTotalVolume(),GetReduceForTotalVolume(),"myresult",query=GetQueryForTotalVolume(date,symbol))
+    #result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
+    print result
+    for i in result.find():
+        print i['value']['volume']
+        #statsCollection.insert({GetStatsName(symbol,"total_volume") : { 'date' : date , 'value' : i.value.volume} })
+
     
     #statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
@@ -177,4 +193,7 @@ if __name__ == '__main__' :
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
     DailyStats(datetime.datetime(2011,1,1),es)
+    #print TotalElaspsedSeconds(datetime.time(12,12,12))
+    #print TotalElaspsedSeconds(datetime.time(16,12,12))
+    #print es.GetSessionTimeSpan()
 
