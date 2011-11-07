@@ -5,14 +5,30 @@ import time
 import datetime
 import math
 from bson.code import Code
+from datetime import timedelta
 
 class Symbol:
+   
     def __init__(self,ticker,startTime,endTime):
         self.ticker = ticker
         self.startTime = startTime
         self.endTime = endTime
     def GetSessionTimeSpan(self):
         return self.startTime.strftime("%H:%M:%S") + "-" + self.endTime.strftime("%H:%M:%S")
+    def GetSessionRange(self,minutesRange,date):
+        
+        symbol = self
+        startTime = date + timedelta(hours=symbol.startTime.hour,minutes=symbol.startTime.minute,seconds=symbol.startTime.second )
+
+        for i in GetRange(symbol,minutesRange):
+            
+            rangeStartTime  = startTime + timedelta(minutes=minutesRange * (i-1))
+            rangeEndTime = rangeStartTime + timedelta(minutes=minutesRange,seconds=-1)
+            #print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
+            if rangeEndTime.time() > symbol.endTime:
+                rangeEndTime = date + timedelta(hours=symbol.endTime.hour,minutes=symbol.endTime.minute,seconds=symbol.endTime.second) 
+
+            yield (rangeStartTime,rangeEndTime)
 
 es = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
     
@@ -55,7 +71,7 @@ def GetReduceForTotalVolume():
 def GetQuery(startTime,endTime):
      query = {"date": {"$gte": startTime, "$lte" : endTime}}
      return query
-def GetQueryForTotalVolume(date,symbol):
+def GetQueryForTotalVolume(date,symbol,timeFrame = None):
     startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=0,minute=0,second=0)
     endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=23,minute=59,second=59)
     startTime = TotalElaspsedSeconds(symbol.startTime)
@@ -134,12 +150,18 @@ def DailyStats(date,symbol):
     statsCollection = conn[GetStatsCollectionName(symbol)]
     
     result = queryCollection.map_reduce(GetMapForTotalVolume(),GetReduceForTotalVolume(),"myresult",query=GetQueryForTotalVolume(date,symbol))
-    #result = queryCollection.find(GetQueryForTotalVolume(date,symbol))
-    print result
-    for i in result.find():
-        print i['value']['volume']
-        #statsCollection.insert({GetStatsName(symbol,"total_volume") : { 'date' : date , 'value' : i.value.volume} })
 
+    totalVolume = result.find_one()
+    statsCollection.insert({GetStatsName(symbol,"total_volume") : { 'date' : date , 'value' : totalVolume['value']['volume']} })
+
+    conn.drop_collection("myresult")
+    
+    for x in symbol.GetSessionRange(30,date):
+        result  = querycollection.map_reduce(GetMapForTotalVolume(),
+                                             GetReduceForTotalVolume(),
+                                             "myresult",
+                                             query=GetQueryForTotalVolume(date,symbol))
+    
     
     #statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
 def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
@@ -192,8 +214,10 @@ if __name__ == '__main__' :
     #ProcessFile("test_data-1-1-2011.txt",datetime.datetime(2011,1,1),es)
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
-    DailyStats(datetime.datetime(2011,1,1),es)
+    #DailyStats(datetime.datetime(2011,1,1),es)
     #print TotalElaspsedSeconds(datetime.time(12,12,12))
     #print TotalElaspsedSeconds(datetime.time(16,12,12))
     #print es.GetSessionTimeSpan()
+    #for i in es.GetSessionRange(30,datetime.datetime(2011,1,1)):
+    #    print i
 
