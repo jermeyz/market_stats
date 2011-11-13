@@ -4,8 +4,11 @@ import datetime
 import time
 import datetime
 import math
+import collections
+from pprint import pprint 
 from bson.code import Code
 from datetime import timedelta
+from collections import namedtuple
 
 class Symbol:
    
@@ -15,24 +18,41 @@ class Symbol:
         self.endTime = endTime
     def GetSessionTimeSpan(self):
         return self.startTime.strftime("%H:%M:%S") + "-" + self.endTime.strftime("%H:%M:%S")
+    def GetRange(self,minutes):
+        #get total length of session and divide by minutes
+        #need a fake date to subtract
+        symbol = self
+        start = datetime.datetime(1900,1,1,symbol.startTime.hour,symbol.startTime.minute,symbol.startTime.second)
+        end = datetime.datetime(1900,1,1,symbol.endTime.hour,symbol.endTime.minute,symbol.endTime.second)
+     
+        diff =  end - start
+        numOfUnitsOfMinutes =  float((diff.seconds /60 )) / float(minutes)
+        x = math.ceil(numOfUnitsOfMinutes)
+        return range(1,int(x) + 1)
     def GetSessionRange(self,minutesRange,date):
         
         symbol = self
         startTime = date + timedelta(hours=symbol.startTime.hour,minutes=symbol.startTime.minute,seconds=symbol.startTime.second )
 
-        for i in GetRange(symbol,minutesRange):
+        for i in self.GetRange(minutesRange):
             
             rangeStartTime  = startTime + timedelta(minutes=minutesRange * (i-1))
             rangeEndTime = rangeStartTime + timedelta(minutes=minutesRange,seconds=-1)
             #print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
             if rangeEndTime.time() > symbol.endTime:
                 rangeEndTime = date + timedelta(hours=symbol.endTime.hour,minutes=symbol.endTime.minute,seconds=symbol.endTime.second) 
-
-            yield (rangeStartTime,rangeEndTime)
+            timeRange =  namedtuple('timeRange', 'rangeStartTime rangeEndTime')
+            startEnd = timeRange(rangeStartTime,rangeEndTime)
+            #yield (rangeStartTime,rangeEndTime)
+            yield(startEnd)
+    
 
 es = Symbol("ES",datetime.time(hour=9,minute=30,second=00),datetime.time(hour=16,minute=15,second=00))
     
-
+def PrintQueryResult(query,collToQuery):
+    conn = GetConnection()
+    for item in conn[collToQuery].find(query):
+        print pprint(item)
 def GetMap():
     map = Code("function () {"\
                  "  var b = 0,a = 0;      "\
@@ -71,11 +91,14 @@ def GetReduceForTotalVolume():
 def GetQuery(startTime,endTime):
      query = {"date": {"$gte": startTime, "$lte" : endTime}}
      return query
-def GetQueryForTotalVolume(date,symbol,timeFrame = None):
+def GetQueryForTotalVolume(date,symbol,startTime = None,endTime = None):
     startDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=0,minute=0,second=0)
     endDate = datetime.datetime(year=date.year,month=date.month,day=date.day,hour=23,minute=59,second=59)
-    startTime = TotalElaspsedSeconds(symbol.startTime)
-    endTime = TotalElaspsedSeconds(symbol.endTime)
+    
+    if(startTime == None ):
+        startTime = TotalElaspsedSeconds(symbol.startTime)
+    if(endTime == None):
+        endTime = TotalElaspsedSeconds(symbol.endTime)
     
     #print startTime 
     #print endTime
@@ -123,17 +146,7 @@ def GetConnection():
     connection = Connection("mongodb://jermeyz:zeidner1@staff.mongohq.com:10031/ES_DATA")
     db = connection['ES_DATA']
     return db
-def GetRange(symbol,minutes):
-    #get total length of session and divide by minutes
-    #need a fake date to subtract
 
-    start = datetime.datetime(1900,1,1,symbol.startTime.hour,symbol.startTime.minute,symbol.startTime.second)
-    end = datetime.datetime(1900,1,1,symbol.endTime.hour,symbol.endTime.minute,symbol.endTime.second)
- 
-    diff =  end - start
-    numOfUnitsOfMinutes =  float((diff.seconds /60 )) / float(minutes)
-    x = math.ceil(numOfUnitsOfMinutes)
-    return range(1,int(x) + 1)
 def GetCollectionName(symbol, date):
     return symbol.ticker  + "-" + str(date.year) + "-" + str(date.month) + "-" + str(date.day)
 def Get30MinuteBarCollection(symbol):
@@ -160,7 +173,8 @@ def DailyStats(date,symbol):
         result  = querycollection.map_reduce(GetMapForTotalVolume(),
                                              GetReduceForTotalVolume(),
                                              "myresult",
-                                             query=GetQueryForTotalVolume(date,symbol))
+                                             query=GetQueryForTotalVolume(date,symbol,startTime = TotalElaspedSeconds(x.rangeStartTime),endTime = TotalElaspedSeconds(x.rangeEndTime) ))
+        
     
     
     #statsCollection.insert({'total_volume_900_415_all' : { 'date' : 34 , 'value' : 4} })
@@ -173,14 +187,11 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
    
     startTime = date + timedelta(hours=symbol.startTime.hour,minutes=symbol.startTime.minute,seconds=symbol.startTime.second )
 
-    for i in GetRange(symbol,30): 
+    for i in symbol.GetSessionRange(30,date): 
        
-        rangeStartTime  = startTime + timedelta(minutes=minutesPerBar* (i-1))
-        rangeEndTime = rangeStartTime + timedelta(minutes=minutesPerBar,seconds=-1)
+        rangeStartTime  = i.rangeStartTime 
+        rangeEndTime = i.rangeEndTime#
 
-        if rangeEndTime.time() > symbol.endTime:
-            rangeEndTime = date + timedelta(hours=symbol.endTime.hour,minutes=symbol.endTime.minute,seconds=symbol.endTime.second) 
-  
         print "start: %s end: %s" % (rangeStartTime,rangeEndTime)
        
         result = coll.map_reduce(GetMap(),GetReduce(),"myresult",query=GetQuery(rangeStartTime,rangeEndTime))
@@ -220,4 +231,8 @@ if __name__ == '__main__' :
     #print es.GetSessionTimeSpan()
     #for i in es.GetSessionRange(30,datetime.datetime(2011,1,1)):
     #    print i
-
+    PrintQueryResult(GetQueryForTotalVolume(datetime.datetime(2011,1,1),
+                                            es,
+                                            startTime = TotalElaspsedSeconds(datetime.datetime(2011,1,1,9,30,0)),
+                                            endTime = TotalElaspsedSeconds(datetime.datetime(2011,1,1,9,59,59)) ),
+                     Get30MinuteBarCollection(es))
