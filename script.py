@@ -5,6 +5,7 @@ import time
 import datetime
 import math
 import collections
+import logging
 from pprint import pprint 
 from bson.code import Code
 from datetime import timedelta
@@ -145,22 +146,26 @@ def ProcessFile(fileName,date,symbol):
     from datetime import datetime
     
     Myfile = open("./" + fileName)
-    print "first line %s" % (Myfile.readline())
+    logging.info('Importing data for %s for date: %s',es.ticker,date)
     conn = GetConnection()
     coll = conn[GetCollectionName(symbol,date)]
     index = 0
     for line in Myfile:
-        if index == 10000:
-            break
-        symbol, date, price, volume, bid, ask = line.split('\t')
-        d = datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
-        post = {'date': d
-                ,'bid': float(bid)
-                ,'ask': float(ask)
-                ,'p': float(price)
-                ,'v': int(volume)}
-        coll.insert(post)
-        index += 1
+        try:
+            if index == 10000:
+                break
+            symbol, date, price, volume, bid, ask = line.split('\t')
+            d = datetime.fromtimestamp(mktime(time.strptime(date,"%m/%d/%Y %H:%M:%S")))
+            post = {'date': d
+                    ,'bid': float(bid)
+                    ,'ask': float(ask)
+                    ,'p': float(price)
+                    ,'v': int(volume)}
+            coll.insert(post)
+            index += 1
+        except:
+            logging.warning("could not load row")
+    logging.info("Uploaded %s records",index)
     Myfile.close()
 def GetConnection():
     from pymongo import Connection
@@ -174,8 +179,11 @@ def Get30MinuteBarCollection(symbol):
     return symbol.ticker+ "-30-minute-bars"
 def GetStatsCollectionName(symbol):
     return symbol.ticker + "-STATS"
-def GetStatsName(symbol,description,timeFrame=None):
-    return symbol.ticker + "-"+ symbol.GetSessionTimeSpan() + "-" + description
+def GetStatsName(symbol,description,startTime=None,endTime=None):
+    if(startTime == None):
+        return symbol.ticker + "-"+ symbol.GetSessionTimeSpan() + "-" + description
+    
+    return symbol.ticker + "-"+ startTime.strftime("%H:%M:%S") + "-" + "-" + endTime.strftime("%H:%M:%S") + "-" + description
 def DailyStats(date,symbol):
 
     conn = GetConnection()
@@ -210,7 +218,7 @@ def DailyStats(date,symbol):
                                                                           startTime = TotalElapsedSeconds(x.rangeStartTime),
                                                                           endTime = TotalElapsedSeconds(x.rangeEndTime) ))
         totalVolume = result.find_one()
-        statsCollection.insert({GetStatsName(symbol,"total_volume") : {'date' : date ,'value' : totalVolume['value']['volume']}})
+        statsCollection.insert({GetStatsName(symbol,"total_volume",x.rangeStartTime,x.rangeEndTime) : {'date' : date ,'value' : totalVolume['value']['volume']}})
         conn.drop_collection("myresult")
         print pprint(totalVolume)
     
@@ -257,14 +265,15 @@ def CreateStatsForRangeOfMinutes(symbol,minutesPerBar,date):
 
     # get all records in the range and get the volume at each price
 if __name__ == '__main__' :
+    logging.basicConfig(level=logging.DEBUG)
     #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,1))
     #CreateStatsForRangeOfMinutes(es,30,datetime.datetime(2011,1,2))
-    #ProcessFile("test_data-1-2-2011.txt",datetime.datetime(2011,1,2),es)
-    #ProcessFile("test_data-1-1-2011.txt",datetime.datetime(2011,1,1),es)
+    ProcessFile("test_data-1-2-2011.txt",datetime.datetime(2011,1,2),es)
+    ProcessFile("test_data-1-1-2011.txt",datetime.datetime(2011,1,1),es)
     #print GetCollectionName(es,datetime.datetime(2011,12,12))
     #print GetRange(es,30)
-    DailyStats(datetime.datetime(2011,1,1),es)
-    #print TotalElapsedSeconds(datetime.time(12,12,12))
+    
+    #int TotalElapsedSeconds(datetime.time(12,12,12))
     #print TotalElapsedSeconds(datetime.time(16,12,12))
     #print es.GetSessionTimeSpan()
     #for i in es.GetSessionRange(30,datetime.datetime(2011,1,1)):
