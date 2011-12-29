@@ -1,0 +1,6 @@
+development:
+  host: staff.mongohq.com
+  database: ES_DATA
+  port: 10031
+  username: jermeyz
+  password: zeidner1

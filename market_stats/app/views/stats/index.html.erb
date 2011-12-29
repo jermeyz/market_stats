@@ -1,0 +1,23 @@
+<h1>Listing stats</h1>
+
+<canvas id="vap" data-processing-sources="<%= javascript_path 'vap.pde' %>"></canvas> 
+<script type="text/javascript">
+$(document).ready( function(){
+
+	$("#test").click(function(){
+		var pjs = Processing.getInstanceById("vap");  
+		pjs.AddData(10,5,"1");
+		pjs.AddData(10,5,"2");
+		pjs.draw();
+	});
+	
+});
+	
+</script>
+<table>
+
+<%= @doc %>
+<button id="test"></button>
+<table>
+
+
